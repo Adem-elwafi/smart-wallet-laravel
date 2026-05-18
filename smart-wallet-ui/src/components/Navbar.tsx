@@ -3,10 +3,11 @@ import { LogOut, Wallet, Sun, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api from '../api/axiosConfig'
 import type { Profile } from '../api/types'
+import { getAvatarUrl, getProfileDisplayName, getStoredUser, setStoredUser } from '../api/userStorage'
 
 function Navbar() {
   const navigate = useNavigate()
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(() => getStoredUser())
   const [isLightMode, setIsLightMode] = useState(false)
 
   // Initialize theme from HTML element on mount
@@ -29,12 +30,25 @@ function Navbar() {
     const fetchProfile = async () => {
       try {
         const response = await api.get<Profile>('/profile')
+        setStoredUser(response.data)
         setProfile(response.data)
       } catch (err) {
         console.error("Failed to fetch profile in navbar", err)
       }
     }
     fetchProfile()
+  }, [])
+
+  useEffect(() => {
+    const syncProfile = () => setProfile(getStoredUser())
+
+    window.addEventListener('user-updated', syncProfile)
+    window.addEventListener('storage', syncProfile)
+
+    return () => {
+      window.removeEventListener('user-updated', syncProfile)
+      window.removeEventListener('storage', syncProfile)
+    }
   }, [])
 
   const handleLogout = () => {
@@ -47,6 +61,13 @@ function Navbar() {
   }
 
   const getInitials = () => {
+    if (profile?.firstname || profile?.lastname) {
+      const firstName = profile.firstname?.trim() ?? ''
+      const lastName = profile.lastname?.trim() ?? ''
+      const parts = [firstName, lastName].filter((part) => part.length > 0)
+      if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+      return parts[0].substring(0, 2).toUpperCase()
+    }
     if (profile?.fullName) {
       const parts = profile.fullName.split(' ').filter(Boolean)
       if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
@@ -88,15 +109,9 @@ function Navbar() {
               onClick={() => navigate('/profile')}
               className="flex items-center gap-3 rounded-full bg-white/5 p-1 pr-4 border border-white/10 transition-all hover:bg-white/10 hover:border-white/20 shadow-sm"
             >
-              {profile?.avatarUrl ? (
-                <img src={profile.avatarUrl} alt="Avatar" className="h-8 w-8 rounded-full object-cover border border-white/20" />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-600 to-indigo-600 shadow-inner">
-                  <span className="text-xs font-bold text-white">{getInitials()}</span>
-                </div>
-              )}
+              <img src={getAvatarUrl(profile)} alt="Avatar" className="h-8 w-8 rounded-full object-cover border border-white/20" />
               <span className="text-sm font-medium text-white/90">
-                {profile?.fullName?.split(' ')[0] || profile?.username || 'Profil'}
+                {getProfileDisplayName(profile).split(' ')[0] || 'Profil'}
               </span>
             </button>
             <button

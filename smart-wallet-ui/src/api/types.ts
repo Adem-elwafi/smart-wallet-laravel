@@ -42,10 +42,13 @@ export interface ApiError {
 
 export interface Profile {
     id: number;
+    firstname: string;
+    lastname: string;
     username: string;
     email: string;
     fullName?: string;
     avatarUrl?: string;
+    image?: string | null;
 }
 
 export interface UpdateProfileRequest {

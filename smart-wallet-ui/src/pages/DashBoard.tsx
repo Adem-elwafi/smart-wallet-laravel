@@ -9,12 +9,13 @@ import { getMyWallet } from '../services/wallet.service'
 import { getTransactionHistory } from '../services/transaction.service'
 import type { TransactionResponse, WalletResponse, Profile } from '../api/types'
 import api from '../api/axiosConfig'
+import { getProfileDisplayName, getStoredUser, setStoredUser } from '../api/userStorage'
 
 function DashboardPage() {
   const navigate = useNavigate()
   const [wallet, setWallet] = useState<WalletResponse | null>(null)
   const [transactions, setTransactions] = useState<TransactionResponse[]>([])
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(() => getStoredUser())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,6 +30,7 @@ function DashboardPage() {
       ])
       setWallet(walletData)
       setTransactions(txData)
+      setStoredUser(profileResponse.data)
       setProfile(profileResponse.data)
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -45,6 +47,18 @@ function DashboardPage() {
       setLoading(false)
     }
   }, [navigate])
+
+  useEffect(() => {
+    const syncProfile = () => setProfile(getStoredUser())
+
+    window.addEventListener('user-updated', syncProfile)
+    window.addEventListener('storage', syncProfile)
+
+    return () => {
+      window.removeEventListener('user-updated', syncProfile)
+      window.removeEventListener('storage', syncProfile)
+    }
+  }, [])
 
   useEffect(() => {
     void loadData()
@@ -77,7 +91,7 @@ function DashboardPage() {
           <h1 className="text-2xl font-bold text-brand-fg tracking-tight">SmartWallet</h1>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-brand-muted">Bonjour, {profile?.username}</span>
+          <span className="text-sm font-medium text-brand-muted">Bonjour, {getProfileDisplayName(profile)}</span>
           <div className="h-10 w-10 rounded-full bg-brand-surface border border-brand-border" />
         </div>
       </header>

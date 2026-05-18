@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ChangeEvent } from 'react'
 import axios from 'axios'
 import api from '../api/axiosConfig'
 import type { Profile, UpdateProfileRequest } from '../api/types'
+import { getAvatarUrl, getProfileDisplayName, getStoredUser, setStoredUser } from '../api/userStorage'
 
 // ─── Floating Label Input ─────────────────────────────────────────────────────
 interface FloatingInputProps {
@@ -149,7 +150,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 // ─── ProfilePage ──────────────────────────────────────────────────────────────
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(() => getStoredUser())
   const [formData, setFormData] = useState<UpdateProfileRequest>({
     email: '',
     fullName: '',
@@ -167,11 +168,12 @@ export default function ProfilePage() {
       try {
         setError(null)
         const response = await api.get<Profile>('/profile')
+        setStoredUser(response.data)
         setProfile(response.data)
         setFormData({
           email: response.data.email || '',
-          fullName: response.data.fullName || '',
-          avatarUrl: response.data.avatarUrl || '',
+          fullName: response.data.fullName || [response.data.firstname, response.data.lastname].filter((part) => Boolean(part)).join(' '),
+          avatarUrl: response.data.image || response.data.avatarUrl || '',
         })
       } catch (err: unknown) {
         if (axios.isAxiosError(err)) {
@@ -193,6 +195,11 @@ export default function ProfilePage() {
       const parts = formData.fullName.split(' ').filter(Boolean)
       if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
       return parts[0].substring(0, 2).toUpperCase()
+    }
+    if (profile?.firstname || profile?.lastname) {
+      const firstInitial = profile.firstname?.trim().charAt(0) ?? ''
+      const lastInitial = profile.lastname?.trim().charAt(0) ?? ''
+      return `${firstInitial}${lastInitial}`.toUpperCase() || 'US'
     }
     if (profile?.username) return profile.username.substring(0, 2).toUpperCase()
     return 'US'
@@ -237,10 +244,27 @@ export default function ProfilePage() {
       const updatePayload = {
         firstname,
         lastname,
+        email: formData.email.trim(),
+        image: formData.avatarUrl || null,
       }
 
       const response = await api.put<Profile>('/profile', updatePayload)
-      setProfile(response.data)
+      const mergedUser: Profile = {
+        ...response.data,
+        email: response.data.email || formData.email.trim(),
+        avatarUrl: response.data.avatarUrl || response.data.image || formData.avatarUrl || profile?.avatarUrl || '',
+        image: response.data.image || formData.avatarUrl || profile?.image || null,
+      }
+
+      setStoredUser(mergedUser)
+      setProfile(mergedUser)
+      setFormData((prev) => ({
+        ...prev,
+        email: mergedUser.email,
+        fullName: [mergedUser.firstname, mergedUser.lastname].filter(Boolean).join(' '),
+        avatarUrl: getAvatarUrl(mergedUser),
+      }))
+      window.dispatchEvent(new CustomEvent('user-updated', { detail: mergedUser }))
       setSuccess('Profil mis à jour avec succès.')
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -305,7 +329,7 @@ export default function ProfilePage() {
             <div className="absolute inset-0 bg-gradient-to-b from-cyan-950/30 to-transparent pointer-events-none" />
 
             <div className="relative group cursor-pointer rounded-full">
-              <Avatar initials={getInitials()} avatarUrl={formData.avatarUrl} />
+              <Avatar initials={getInitials()} avatarUrl={formData.avatarUrl || getAvatarUrl(profile)} />
               
               {/* Upload Overlay */}
               <div className="absolute inset-0 z-10 flex items-center justify-center rounded-full bg-black/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
@@ -328,10 +352,10 @@ export default function ProfilePage() {
 
             <div className="relative mt-6">
               <h1 className="text-xl font-extralight tracking-[0.15em] text-white/90 uppercase">
-                {formData.fullName || profile?.username || 'Votre Profil'}
+                {formData.fullName || getProfileDisplayName(profile) || 'Votre Profil'}
               </h1>
               <p className="mt-1 text-xs tracking-[0.3em] uppercase text-cyan-400/70 font-light">
-                @{profile?.username} · Membre
+                @{profile?.username || profile?.email || 'user'} · Membre
               </p>
             </div>
 
