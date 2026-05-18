@@ -128,6 +128,7 @@ class TransactionController extends Controller
         $transactions = Transaction::query()
             ->where('sender_wallet_id', $wallet->id)
             ->orWhere('receiver_wallet_id', $wallet->id)
+            ->with(['senderWallet.user', 'receiverWallet.user'])
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (Transaction $transaction) => [
@@ -138,6 +139,12 @@ class TransactionController extends Controller
                 'createdAt' => $transaction->created_at?->utc()?->format('Y-m-d\TH:i:s\Z'),
                 'senderWalletId' => $transaction->sender_wallet_id,
                 'receiverWalletId' => $transaction->receiver_wallet_id,
+                'senderAccountNumber' => $transaction->senderWallet?->wallet_number,
+                'recipientAccountNumber' => $transaction->receiverWallet?->wallet_number,
+                'senderFirstname' => $transaction->senderWallet?->user?->firstname,
+                'senderLastname' => $transaction->senderWallet?->user?->lastname,
+                'recipientFirstname' => $transaction->receiverWallet?->user?->firstname,
+                'recipientLastname' => $transaction->receiverWallet?->user?->lastname,
             ])
             ->values();
 

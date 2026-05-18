@@ -29,11 +29,17 @@ export interface TransferRequest {
 export interface TransactionResponse {
     id: number;
     amount: number;
-    timestamp: string;
     type: string;
     description: string;
-    senderAccountNumber: string;
-    recipientAccountNumber: string;
+    createdAt: string;
+    senderWalletId: number | null;
+    receiverWalletId: number | null;
+    senderAccountNumber?: string | null;
+    recipientAccountNumber?: string | null;
+    senderFirstname?: string | null;
+    senderLastname?: string | null;
+    recipientFirstname?: string | null;
+    recipientLastname?: string | null;
 }
 
 export interface ApiError {
