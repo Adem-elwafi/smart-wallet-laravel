@@ -23,10 +23,12 @@ export const getTransactionHistory = async (): Promise<TransactionResponse[]> =>
 export const depositFunds = async (
   amount: number,
   description?: string,
+  category?: string,
 ): Promise<TransactionResponse> => {
   const response = await axiosInstance.post('/transactions/deposit', {
     amount,
     description,
+    category,
   });
   return response.data;
 };
@@ -34,7 +36,15 @@ export const depositFunds = async (
 /**
  * Withdraw funds from the wallet
  */
-export const withdrawFunds = async (amount: number): Promise<TransactionResponse> => {
-  const response = await axiosInstance.post('/transactions/withdraw', { amount });
+export const withdrawFunds = async (
+  amount: number,
+  description?: string,
+  category?: string,
+): Promise<TransactionResponse> => {
+  const response = await axiosInstance.post('/transactions/withdraw', {
+    amount,
+    description,
+    category,
+  });
   return response.data;
 };

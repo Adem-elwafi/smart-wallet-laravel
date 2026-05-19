@@ -13,14 +13,29 @@ class TransactionController extends Controller
 {
     public function transfer(Request $request): JsonResponse
     {
+        $senderUser = $request->user();
+        $sourceWallet = $senderUser->wallet;
+
         $validated = $request->validate([
-            'receiverWalletNumber' => ['required', 'string', 'max:32'],
+            'receiverWalletNumber' => ['required_without:receiver_wallet_number', 'string', 'max:32'],
+            'receiver_wallet_number' => ['required_without:receiverWalletNumber', 'string', 'max:32'],
             'amount' => ['required', 'numeric', 'gt:0'],
             'description' => ['nullable', 'string', 'max:255'],
+            'category' => ['required', 'string', 'max:64'],
         ]);
 
-        $senderUser = $request->user();
-        $receiverWallet = Wallet::query()->where('wallet_number', $validated['receiverWalletNumber'])->first();
+        $receiverWalletNumber = $validated['receiverWalletNumber'] ?? $validated['receiver_wallet_number'];
+
+        if ($sourceWallet && $receiverWalletNumber === $sourceWallet->wallet_number) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => [
+                    'receiver_wallet_number' => ["Impossible d'envoyer de l'argent à votre propre compte."],
+                ],
+            ], 422);
+        }
+
+        $receiverWallet = Wallet::query()->where('wallet_number', $receiverWalletNumber)->first();
 
         if (! $receiverWallet) {
             return response()->json([
@@ -49,6 +64,7 @@ class TransactionController extends Controller
                 'receiver_wallet_id' => $receiverWallet->id,
                 'amount' => $validated['amount'],
                 'type' => 'TRANSFER',
+                'category' => $validated['category'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'created_at' => now(),
             ]);
@@ -64,6 +80,7 @@ class TransactionController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
             'description' => ['nullable', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:64'],
         ]);
 
         DB::transaction(function () use ($request, $validated): void {
@@ -77,6 +94,7 @@ class TransactionController extends Controller
                 'receiver_wallet_id' => $wallet->id,
                 'amount' => $validated['amount'],
                 'type' => 'DEPOSIT',
+                'category' => $validated['category'] ?? null,
                 'description' => $validated['description'] ?? null,
                 'created_at' => now(),
             ]);
@@ -89,18 +107,34 @@ class TransactionController extends Controller
 
     public function withdraw(Request $request): JsonResponse
     {
+        $user = $request->user();
+        $wallet = $user->wallet;
+
+        if (! $wallet) {
+            return response()->json([
+                'message' => 'Wallet not found',
+            ], 404);
+        }
+
         $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'gt:0'],
+            'amount' => ['required', 'numeric', 'min:1'],
+            'category' => ['required', 'string', 'max:64'],
             'description' => ['nullable', 'string', 'max:255'],
         ]);
 
-        DB::transaction(function () use ($request, $validated): void {
-            $wallet = Wallet::query()->where('user_id', $request->user()->id)->lockForUpdate()->firstOrFail();
+        if ((float) $wallet->balance < (float) $validated['amount']) {
+            return response()->json([
+                'message' => 'Solde insuffisant pour cette dépense.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($wallet, $validated): void {
+            $wallet = Wallet::query()->where('id', $wallet->id)->lockForUpdate()->firstOrFail();
 
             if ((float) $wallet->balance < (float) $validated['amount']) {
                 throw new HttpResponseException(response()->json([
-                    'error' => 'Insufficient balance',
-                ], 400));
+                    'message' => 'Solde insuffisant pour cette dépense.',
+                ], 422));
             }
 
             $wallet->balance = (float) $wallet->balance - (float) $validated['amount'];
@@ -111,13 +145,14 @@ class TransactionController extends Controller
                 'receiver_wallet_id' => null,
                 'amount' => $validated['amount'],
                 'type' => 'WITHDRAWAL',
-                'description' => $validated['description'] ?? null,
+                'category' => $validated['category'],
+                'description' => $validated['description'] ?? 'Dépense personnelle',
                 'created_at' => now(),
             ]);
         });
 
         return response()->json([
-            'message' => 'Withdrawal successful',
+            'message' => 'Dépense enregistrée avec succès !',
         ]);
     }
 
@@ -145,6 +180,7 @@ class TransactionController extends Controller
                 'senderLastname' => $transaction->senderWallet?->user?->lastname,
                 'recipientFirstname' => $transaction->receiverWallet?->user?->firstname,
                 'recipientLastname' => $transaction->receiverWallet?->user?->lastname,
+                'category' => $transaction->category,
             ])
             ->values();
 

@@ -24,6 +24,7 @@ export interface TransferRequest {
     receiverWalletNumber: string;
     amount: number;
     description: string;
+    category?: string;
 }
 
 export interface TransactionResponse {
@@ -40,6 +41,7 @@ export interface TransactionResponse {
     senderLastname?: string | null;
     recipientFirstname?: string | null;
     recipientLastname?: string | null;
+    category?: string | null;
 }
 
 export interface ApiError {

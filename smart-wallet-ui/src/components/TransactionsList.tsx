@@ -63,6 +63,17 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
         };
   };
 
+  const getCategoryColorClass = (category?: string | null) => {
+    switch (category?.toLowerCase()) {
+      case 'alimentation': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+      case 'transport': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+      case 'loisirs': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+      case 'factures': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case 'salaire': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+    }
+  };
+
   if (loading) {
     return <div className="text-brand-muted">Chargement des transactions...</div>;
   }
@@ -92,15 +103,23 @@ const TransactionsList: React.FC<TransactionsListProps> = ({
         const theme = getTransactionTheme(isOutgoing);
 
         return (
-          <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl transition-colors hover:bg-white/[0.03] group">
+          <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl transition-colors hover:bg-white/3 group">
             <div className="flex items-center gap-4">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl ${theme.wrapperClasses}`}>
                 {theme.icon}
               </div>
-              <div>
-                <h4 className="text-[15px] font-semibold text-brand-fg">
-                  {theme.label}
-                </h4>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-[15px] font-semibold text-brand-fg">
+                    {theme.label}
+                  </h4>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${getCategoryColorClass(tx.category)}`}>
+                    {tx.category || 'Sans catégorie'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  {tx.description || 'Aucune description'}
+                </p>
                 <p className="text-xs text-brand-muted mt-0.5">
                   {isOutgoing ? `À ${tx.recipientAccountNumber}` : `De ${tx.senderAccountNumber}`}
                 </p>

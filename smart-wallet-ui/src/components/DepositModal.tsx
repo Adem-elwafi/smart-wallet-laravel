@@ -10,6 +10,7 @@ interface DepositModalProps {
 export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onSuccess }) => {
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(false)
 
   if (!isOpen) return null
@@ -19,7 +20,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onS
     setLoading(true)
 
     try {
-      await depositFunds(parseFloat(amount), description || 'Ajout de revenu')
+      await depositFunds(parseFloat(amount), description || 'Ajout de revenu', category || undefined)
 
       window.dispatchEvent(new Event('user-updated'))
       onSuccess?.()
@@ -67,6 +68,28 @@ export const DepositModal: React.FC<DepositModalProps> = ({ isOpen, onClose, onS
               placeholder="Ex: Salaire, Freelance..."
               className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-white outline-none transition focus:border-emerald-500"
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-400">Catégorie (Optionnel)</label>
+            <div className="relative">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 pr-11 text-slate-100 outline-none transition hover:border-slate-500 focus:border-emerald-500 focus:bg-slate-800 focus:text-white"
+              >
+                <option value="" className="bg-slate-900 text-slate-300">Sélectionner une catégorie</option>
+                <option value="Salaire" className="bg-slate-900 text-slate-100">Salaire</option>
+                <option value="Alimentation" className="bg-slate-900 text-slate-100">Alimentation</option>
+                <option value="Loisirs" className="bg-slate-900 text-slate-100">Loisirs</option>
+                <option value="Transport" className="bg-slate-900 text-slate-100">Transport</option>
+                <option value="Factures" className="bg-slate-900 text-slate-100">Factures</option>
+                <option value="Autre" className="bg-slate-900 text-slate-100">Autre</option>
+              </select>
+              <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-slate-400 transition-colors focus-within:text-emerald-400">
+                ▾
+              </span>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

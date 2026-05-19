@@ -121,14 +121,34 @@ function DashboardPage() {
   const dashboardStats = useMemo(() => {
     const currentAccountNumber = wallet?.accountNumber
 
+    const isOutgoingTransaction = (tx: TransactionResponse) => {
+      if (!currentAccountNumber) {
+        return tx.type === 'WITHDRAWAL' || tx.type === 'TRANSFER'
+      }
+
+      return (
+        tx.type === 'WITHDRAWAL' ||
+        (tx.type === 'TRANSFER' && tx.senderAccountNumber === currentAccountNumber)
+      )
+    }
+
+    const isIncomingTransaction = (tx: TransactionResponse) => {
+      if (!currentAccountNumber) {
+        return tx.type === 'DEPOSIT'
+      }
+
+      return (
+        tx.type === 'DEPOSIT' ||
+        (tx.type === 'TRANSFER' && tx.recipientAccountNumber === currentAccountNumber)
+      )
+    }
+
     const incoming = transactions.filter((tx) => {
-      if (!currentAccountNumber) return tx.type === 'DEPOSIT'
-      return tx.recipientAccountNumber === currentAccountNumber || tx.type === 'DEPOSIT'
+      return isIncomingTransaction(tx)
     })
 
     const outgoing = transactions.filter((tx) => {
-      if (!currentAccountNumber) return tx.type === 'WITHDRAWAL' || tx.type === 'TRANSFER'
-      return tx.senderAccountNumber === currentAccountNumber && tx.type !== 'DEPOSIT'
+      return isOutgoingTransaction(tx)
     })
 
     const totalIncoming = incoming.reduce((acc, tx) => acc + tx.amount, 0)
@@ -145,7 +165,7 @@ function DashboardPage() {
       const dayTransactions = transactions.filter((tx) => (tx.createdAt || '').slice(0, 10) === dayKey)
 
       return dayTransactions.reduce((acc, tx) => {
-        const isIncoming = tx.type === 'DEPOSIT' || (currentAccountNumber ? tx.recipientAccountNumber === currentAccountNumber : tx.type === 'TRANSFER')
+        const isIncoming = isIncomingTransaction(tx)
         return acc + (isIncoming ? tx.amount : -tx.amount)
       }, 0)
     })
@@ -191,6 +211,31 @@ function DashboardPage() {
   const monthlyIncomes = dashboardStats.totalIncoming
   const monthlyExpenses = dashboardStats.totalOutgoing
   const netFlow = dashboardStats.netBalanceFlow
+
+  const categoryTotals = useMemo(() => {
+    const map = new Map<string, number>()
+    const currentAccountNumber = wallet?.accountNumber
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
+    transactions.forEach((tx) => {
+      const created = tx.createdAt ? new Date(tx.createdAt) : null
+      if (!created) return
+      if (created.getMonth() !== currentMonth || created.getFullYear() !== currentYear) return
+      if (!currentAccountNumber) {
+        if (tx.type === 'DEPOSIT') return
+      } else if (tx.type !== 'WITHDRAWAL' && tx.senderAccountNumber !== currentAccountNumber) {
+        return
+      }
+
+      const key = tx.category || 'Uncategorized'
+      const prev = map.get(key) || 0
+      map.set(key, prev + (tx.amount || 0))
+    })
+
+    return Array.from(map.entries()).map(([label, value]) => ({ label, value }))
+  }, [transactions, wallet?.accountNumber])
 
   const chartLabels = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
@@ -286,7 +331,7 @@ function DashboardPage() {
                   Dépôt
                 </button>
               </div>
-              <TransferForm onTransferSuccess={loadData} />
+              <TransferForm onTransferSuccess={loadData} currentWalletNumber={wallet?.accountNumber} />
             </div>
           </aside>
 
@@ -363,29 +408,53 @@ function DashboardPage() {
               <div>
                 <h4 className="text-brand-fg font-bold mb-6">Répartition réelle</h4>
                 <div className="space-y-6">
-                  {[
-                    { label: 'Dépôts', value: monthlyIncomes, color: 'var(--accent)' },
-                    { label: 'Sorties', value: monthlyExpenses, color: 'var(--danger)' },
-                    { label: 'Solde net', value: netFlow, color: 'var(--accent)' },
-                  ].map((item) => {
-                    const maxValue = Math.max(monthlyIncomes, monthlyExpenses, Math.abs(netFlow), 1)
-                    const width = Math.min(100, (Math.abs(item.value) / maxValue) * 100)
+                  {categoryTotals.length > 0 ? (
+                    categoryTotals.map((item, idx) => {
+                      const maxValue = Math.max(...categoryTotals.map(c => Math.abs(c.value)), 1)
+                      const width = Math.min(100, (Math.abs(item.value) / maxValue) * 100)
+                      const palette = ['var(--accent)', 'var(--danger)', 'var(--muted)', 'var(--accent)']
+                      const color = palette[idx % palette.length]
 
-                    return (
-                      <div key={item.label}>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-brand-muted">{item.label}</span>
-                          <span className="text-brand-fg font-bold">{item.value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+                      return (
+                        <div key={item.label}>
+                          <div className="flex justify-between text-sm mb-2">
+                            <span className="text-brand-muted">{item.label}</span>
+                            <span className="text-brand-fg font-bold">{item.value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+                          </div>
+                          <div className="h-2 bg-brand-surface rounded-full overflow-hidden">
+                            <div
+                              className="h-full transition-all duration-1000"
+                              style={{ width: `${width}%`, backgroundColor: color }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-2 bg-brand-surface rounded-full overflow-hidden">
-                          <div
-                            className="h-full transition-all duration-1000"
-                            style={{ width: `${width}%`, backgroundColor: item.color }}
-                          />
+                      )
+                    })
+                  ) : (
+                    [
+                      { label: 'Dépôts', value: monthlyIncomes, color: 'var(--accent)' },
+                      { label: 'Sorties', value: monthlyExpenses, color: 'var(--danger)' },
+                      { label: 'Solde net', value: netFlow, color: 'var(--accent)' },
+                    ].map((item) => {
+                      const maxValue = Math.max(monthlyIncomes, monthlyExpenses, Math.abs(netFlow), 1)
+                      const width = Math.min(100, (Math.abs(item.value) / maxValue) * 100)
+
+                      return (
+                        <div key={item.label}>
+                          <div className="flex justify-between text-sm mb-2">
+                            <span className="text-brand-muted">{item.label}</span>
+                            <span className="text-brand-fg font-bold">{item.value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+                          </div>
+                          <div className="h-2 bg-brand-surface rounded-full overflow-hidden">
+                            <div
+                              className="h-full transition-all duration-1000"
+                              style={{ width: `${width}%`, backgroundColor: item.color }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               </div>
               <div className="flex flex-col justify-center glass bg-brand-accent/5 border-brand-accent/10 p-6 rounded-2xl">

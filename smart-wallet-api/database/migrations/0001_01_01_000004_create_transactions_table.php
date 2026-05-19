@@ -18,6 +18,7 @@ return new class extends Migration
             $table->foreignId('receiver_wallet_id')->nullable()->constrained('wallets')->nullOnDelete();
             $table->decimal('amount', 15, 2);
             $table->string('type');
+            $table->string('category')->nullable();
             $table->string('description')->nullable();
             $table->timestamp('created_at')->useCurrent();
         });

@@ -17,6 +17,7 @@ class Transaction extends Model
         'receiver_wallet_id',
         'amount',
         'type',
+        'category',
         'description',
         'created_at',
     ];
